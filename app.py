@@ -9,7 +9,7 @@ import gspread
 # 1. GOOGLE SHEETS VERİTABANI BAĞLANTISI
 # ==========================================
 # Senin oluşturduğumuz benzersiz Excel dosyasının ID'si[cite: 1]
-SHEET_ID = "1cZUcgbcO1ELfzJY2L0OVuaQ1rVipMkGFib389VTAtKA"
+SHEET_ID = "1zYEn7zcg6x-dVsYBsl-QNiL-los_BtXr2FY11SCiaNM"
 
 @st.cache_resource
 def google_sheets_baglan():
