@@ -8,12 +8,10 @@ import gspread
 # ==========================================
 # 1. GOOGLE SHEETS VERİTABANI BAĞLANTISI
 # ==========================================
-# Senin oluşturduğumuz benzersiz Excel dosyasının ID'si
 SHEET_ID = "1zYEn7zcg6x-dVsYBsl-QNiL-los_BtXr2FY11SCiaNM"
 
 @st.cache_resource
 def google_sheets_baglan():
-    # Streamlit'in gizli kasasından anahtarı çek
     s_creds = dict(st.secrets["gcp_service_account"])
     gc = gspread.service_account_from_dict(s_creds)
     return gc.open_by_key(SHEET_ID).sheet1
@@ -31,8 +29,8 @@ def islem_ekle(tarih, islem_tipi, hisse, lot, fiyat_tutar):
         tarih.strftime("%d.%m.%Y"),
         islem_tipi,
         hisse.upper(),
-        str(float(lot)).replace('.', ',') if lot else "0,0",
-        str(float(fiyat_tutar)).replace('.', ',') if fiyat_tutar else "0,0"
+        float(lot) if lot else 0.0,
+        float(fiyat_tutar) if fiyat_tutar else 0.0
     ]
     sheet.append_row(yeni_satir)
 
@@ -43,7 +41,7 @@ def veritabani_guncelle(df):
         sheet.append_rows(df.values.tolist())
 
 # ==========================================
-# 2. YFINANCE FİYAT MOTORU (Günlük K/Z Uyumlu)
+# 2. YFINANCE FİYAT MOTORU
 # ==========================================
 def fiyatlari_getir(hisse_kodu):
     try:
@@ -63,11 +61,10 @@ def fiyatlari_getir(hisse_kodu):
     return 0.0, 0.0
 
 # ==========================================
-# 3. SAYFA TEMEL AYARLARI VE YÜKLEME
+# 3. SAYFA TEMEL AYARLARI
 # ==========================================
 st.set_page_config(page_title="PARA - Portföy", layout="wide", page_icon="💸")
 
-# Veriyi Google Sheets'ten canlı çek
 df_islem_defteri = verileri_yukle()
 
 # ==========================================
@@ -82,13 +79,14 @@ hisse_kodu = st.sidebar.text_input("Hisse Kodu (Örn: ASELS)")
 lot_miktari = None
 islem_fiyati = None
 
+# BURASI DÜZELTİLDİ: Küsurat formatı (%.2f) eklendi!
 if islem_tipi in ["Alış", "Satış"]:
-    lot_miktari = st.sidebar.number_input("Lot Sayısı", min_value=0.0, step=1.0, value=None)
-    islem_fiyati = st.sidebar.number_input("İşlem Fiyatı (TL)", min_value=0.0, step=0.01, value=None)
+    lot_miktari = st.sidebar.number_input("Lot Sayısı", min_value=0.0, step=0.01, value=None, format="%.2f")
+    islem_fiyati = st.sidebar.number_input("İşlem Fiyatı (TL)", min_value=0.0, step=0.01, value=None, format="%.2f")
 elif islem_tipi == "Temettü":
-    islem_fiyati = st.sidebar.number_input("Alınan Toplam Nakit Temettü (TL)", min_value=0.0, step=1.0, value=None)
+    islem_fiyati = st.sidebar.number_input("Alınan Toplam Nakit Temettü (TL)", min_value=0.0, step=0.01, value=None, format="%.2f")
 elif islem_tipi == "Bölünme":
-    lot_miktari = st.sidebar.number_input("Bedelsiz Gelen Ekstra Lot Sayısı", min_value=0.0, step=1.0, value=None)
+    lot_miktari = st.sidebar.number_input("Bedelsiz Gelen Ekstra Lot Sayısı", min_value=0.0, step=0.01, value=None, format="%.2f")
 
 if st.sidebar.button("Portföye Ekle"):
     if hisse_kodu:
@@ -97,7 +95,7 @@ if st.sidebar.button("Portföye Ekle"):
            (islem_tipi == "Bölünme" and lot_miktari is not None):
             
             islem_ekle(islem_tarihi, islem_tipi, hisse_kodu, lot_miktari, islem_fiyati)
-            st.sidebar.success(f"{islem_tipi} işlemi Google Sheets'e başarıyla kaydedildi!")
+            st.sidebar.success(f"{islem_tipi} işlemi kaydedildi!")
             st.rerun()
         else:
             st.sidebar.error("Lütfen zorunlu alanları doldurun.")
@@ -113,7 +111,7 @@ if st.sidebar.button("Portföyü Tamamen Temizle", disabled=not silme_onayi):
     st.rerun()
 
 # ==========================================
-# 5. AKILLI HESAPLAMA MOTORU (Midas Uyumlu)
+# 5. AKILLI HESAPLAMA MOTORU
 # ==========================================
 portfoy_listesi = []
 toplam_alinan_temettu = 0.0
@@ -127,7 +125,7 @@ if not df_islem_defteri.empty:
         
         for idx, row in df_hisse.iterrows():
             tip = row["İşlem_Tipi"]
-            # Google Sheets'ten gelen değerleri temizleyip floata çevir
+            # Temiz küsurat okuması
             lot = float(str(row["Lot"]).replace(',', '.'))
             deger = float(str(row["Fiyat_Tutar"]).replace(',', '.'))
             
@@ -159,7 +157,7 @@ if not df_islem_defteri.empty:
 df_portfoy = pd.DataFrame(portfoy_listesi)
 
 # ==========================================
-# 6. CANLI FİYAT VE GÜNLÜK K/Z HESAPLAMASI
+# 6. CANLI FİYAT VE GÜNLÜK K/Z
 # ==========================================
 toplam_portfoy_degeri = 0.0
 brut_ana_para_toplami = 0.0
@@ -200,7 +198,7 @@ if not df_portfoy.empty:
     df_portfoy["K/Z (Tutar)"] = kar_zarar_tutar
 
 # ==========================================
-# 7. ÜST KISIM (Başlık ve 6'lı KPI Paneli)
+# 7. ÜST KISIM (Başlık ve KPI)
 # ==========================================
 col_baslik, col_sayac = st.columns([3, 1])
 with col_baslik:
@@ -225,7 +223,7 @@ kpi6.metric(label="Toplam Temettü", value=f"{toplam_alinan_temettu:,.2f} ₺")
 st.markdown("---")
 
 # ==========================================
-# 8. SEKMELER (TABS)
+# 8. SEKMELER
 # ==========================================
 tab_ana_ekran, tab_hisse_detay = st.tabs(["📊 Ana Portföy", "🔍 Hisse Detay ve İşlem Geçmişi"])
 
@@ -264,21 +262,6 @@ with tab_ana_ekran:
             fig.update_layout(margin=dict(t=0, b=0, l=0, r=0))
             st.plotly_chart(fig, use_container_width=True)
 
-    st.markdown("---")
-    st.subheader("⚡ Anlık Bildirimler ve Analizler (Gemini AI)")
-    st.caption("Sadece portföyünüzdeki hisselere ait önemli piyasa olayları")
-    
-    ornek_haberler = [
-        {"hisse": "ASELS", "tip": "olumlu", "mesaj": "15 Milyon dolarlık yeni savunma sanayi sözleşmesi imzalandı."},
-        {"hisse": "ASTOR", "tip": "notr", "mesaj": "Genel kurul toplantı tarihi 15 Ağustos 2026 olarak duyuruldu."},
-        {"hisse": "TUPRS", "tip": "olumsuz", "mesaj": "Küresel petrol fiyatlarındaki düşüş sebebiyle marjlarda daralma sinyali."}
-    ]
-    
-    for haber in ornek_haberler:
-        if haber["tip"] == "olumlu": st.success(f"🟢 **{haber['hisse']}** - {haber['mesaj']}")
-        elif haber["tip"] == "olumsuz": st.error(f"🔴 **{haber['hisse']}** - {haber['mesaj']}")
-        else: st.info(f"⚪ **{haber['hisse']}** - {haber['mesaj']}")
-
 with tab_hisse_detay:
     st.subheader("🔍 Hisse Röntgeni ve İşlem Geçmişi")
     
@@ -288,7 +271,6 @@ with tab_hisse_detay:
         secilen_hisse = st.selectbox("İncelemek istediğiniz hisseyi seçin:", df_islem_defteri["Hisse"].unique())
         hisse_gecmisi = df_islem_defteri[df_islem_defteri["Hisse"] == secilen_hisse]
         
-        # O hissenin temettülerini toplarken floata çevir
         hisse_ozel_temettu = sum(float(str(val).replace(',', '.')) for val in hisse_gecmisi[hisse_gecmisi["İşlem_Tipi"] == "Temettü"]["Fiyat_Tutar"])
         
         st.markdown(f"### 📖 {secilen_hisse} İşlem Özeti")
