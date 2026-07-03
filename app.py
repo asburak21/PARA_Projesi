@@ -29,8 +29,9 @@ def islem_ekle(tarih, islem_tipi, hisse, lot, fiyat_tutar):
         tarih.strftime("%d.%m.%Y"),
         islem_tipi,
         hisse.upper(),
-        float(lot) if lot else 0.0,
-        float(fiyat_tutar) if fiyat_tutar else 0.0
+        # Excel TR dilinde olduğu için noktayı virgüle çevirerek gönderiyoruz
+        str(float(lot)).replace('.', ',') if lot else "0,0",
+        str(float(fiyat_tutar)).replace('.', ',') if fiyat_tutar else "0,0"
     ]
     sheet.append_row(yeni_satir)
 
@@ -38,7 +39,11 @@ def veritabani_guncelle(df):
     sheet.clear()
     sheet.append_row(list(df.columns))
     if not df.empty:
-        sheet.append_rows(df.values.tolist())
+        # Tekrar kaydederken de virgüllü stringe çevirerek kaydetmeli
+        df_kayit = df.copy()
+        df_kayit["Lot"] = df_kayit["Lot"].astype(str).str.replace('.', ',')
+        df_kayit["Fiyat_Tutar"] = df_kayit["Fiyat_Tutar"].astype(str).str.replace('.', ',')
+        sheet.append_rows(df_kayit.values.tolist())
 
 # ==========================================
 # 2. YFINANCE FİYAT MOTORU
@@ -79,7 +84,7 @@ hisse_kodu = st.sidebar.text_input("Hisse Kodu (Örn: ASELS)")
 lot_miktari = None
 islem_fiyati = None
 
-# BURASI DÜZELTİLDİ: Küsurat formatı (%.2f) eklendi!
+# Streamlit arayüzünde sayıları noktalı okuması için %.2f formatı
 if islem_tipi in ["Alış", "Satış"]:
     lot_miktari = st.sidebar.number_input("Lot Sayısı", min_value=0.0, step=0.01, value=None, format="%.2f")
     islem_fiyati = st.sidebar.number_input("İşlem Fiyatı (TL)", min_value=0.0, step=0.01, value=None, format="%.2f")
@@ -269,7 +274,7 @@ with tab_hisse_detay:
         st.info("Sistemde incelenecek hisse işlemi bulunmuyor.")
     else:
         secilen_hisse = st.selectbox("İncelemek istediğiniz hisseyi seçin:", df_islem_defteri["Hisse"].unique())
-        hisse_gecmisi = df_islem_defteri[df_islem_defteri["Hisse"] == secilen_hisse]
+        hisse_gecmisi = df_islem_defteri[df_islem_defteri["Hisse"] == secilen_hisse].copy()
         
         hisse_ozel_temettu = sum(float(str(val).replace(',', '.')) for val in hisse_gecmisi[hisse_gecmisi["İşlem_Tipi"] == "Temettü"]["Fiyat_Tutar"])
         
@@ -277,7 +282,18 @@ with tab_hisse_detay:
         if hisse_ozel_temettu > 0:
             st.info(f"💰 **BİLGİ:** {secilen_hisse} hissesinden bugüne kadar toplam **{hisse_ozel_temettu:,.2f} ₺** nakit temettü geliri elde ettiniz.")
         
-        st.dataframe(hisse_gecmisi, use_container_width=True, hide_index=False)
+        # İşlem geçmişi tablosunu görsel olarak formatlama (Noktalı/Küsüratlı gösterim)
+        gosterilecek_gecmis = hisse_gecmisi.copy()
+        gosterilecek_gecmis["Lot"] = pd.to_numeric(gosterilecek_gecmis["Lot"].astype(str).str.replace(',', '.'), errors='coerce')
+        gosterilecek_gecmis["Fiyat_Tutar"] = pd.to_numeric(gosterilecek_gecmis["Fiyat_Tutar"].astype(str).str.replace(',', '.'), errors='coerce')
+
+        st.dataframe(
+            gosterilecek_gecmis.style.format({
+                "Lot": "{:,.2f}",
+                "Fiyat_Tutar": "{:,.2f} ₺"
+            }),
+            use_container_width=True, hide_index=False
+        )
         
         st.markdown("---")
         st.markdown("### 🗑️ Hatalı İşlemi Sil")
