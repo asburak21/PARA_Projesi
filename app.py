@@ -8,7 +8,7 @@ import gspread
 # ==========================================
 # 1. GOOGLE SHEETS VERİTABANI BAĞLANTISI
 # ==========================================
-# Senin oluşturduğumuz benzersiz Excel dosyasının ID'si[cite: 1]
+# Senin oluşturduğumuz benzersiz Excel dosyasının ID'si
 SHEET_ID = "1zYEn7zcg6x-dVsYBsl-QNiL-los_BtXr2FY11SCiaNM"
 
 @st.cache_resource
@@ -31,8 +31,8 @@ def islem_ekle(tarih, islem_tipi, hisse, lot, fiyat_tutar):
         tarih.strftime("%d.%m.%Y"),
         islem_tipi,
         hisse.upper(),
-        float(lot) if lot else 0.0,
-        float(fiyat_tutar) if fiyat_tutar else 0.0
+        str(float(lot)).replace('.', ',') if lot else "0,0",
+        str(float(fiyat_tutar)).replace('.', ',') if fiyat_tutar else "0,0"
     ]
     sheet.append_row(yeni_satir)
 
